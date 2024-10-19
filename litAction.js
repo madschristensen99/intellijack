@@ -8,7 +8,7 @@
       content: content[0][1]  // Assuming the content is always in this format
     }));
     const FHENIX_RPC_URL = "https://api.helium.fhenix.zone";
-    const mnemonic = "curve circle grief risk club ensure will camp verify mistake output chase";
+    const mnemonic = "seed phrase";
     const provider = new ethers.providers.JsonRpcProvider(FHENIX_RPC_URL);
     const signer = ethers.Wallet.fromMnemonic(mnemonic).connect(provider);
 
@@ -156,7 +156,7 @@
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer sk-pP2M1z3dJjqvFKqLowZf0XyFVjlIQ77uWnZZ3E65DdwLqKnm'
+          'Authorization': 'Bearer YOUR-API-KEY-HERE'
         },
         body: JSON.stringify({
             model: "anthropic/claude-3.5-sonnet",
