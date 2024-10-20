@@ -69,6 +69,9 @@ Contributions, issues, and feature requests are welcome! Feel free to check [iss
 
 This project is [MIT](link-to-your-license-file) licensed.
 
+## Video
+https://youtu.be/BCB-js1nKx0?si=ErkOY0q3RDaScf58
+
 ## 🙏 Acknowledgements
 
 - Galadriel team for the initial inspiration and [contract templates](https://github.com/galadriel-ai/contracts/tree/main/contracts/contracts)
