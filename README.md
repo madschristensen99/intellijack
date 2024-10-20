@@ -8,11 +8,11 @@ IntelliJack began its journey on Galadriel's devnet, which was originally concei
 
 To preserve the functionality of existing dApps and unlock new possibilities, IntelliJack reimagined an oracle service to be built on Lit Protocol. This strategic shift enables the service to operate on any EVM chain, significantly broadening its applicability and reach.
 
-The migration to Fhenix  not only maintained the project's core functionalitiess but also introduced groundbreaking features, particularly in handling private data for AI inference. 
+The deployment on Fhenix not only maintains old project's core functionalitiess but also introduces groundbreaking features, particularly in handling private data for AI inference. 
 
 A key innovation in this iteration is the introduction of an agent struct within the oracle contract. This addition facilitates functionality similar to OpenAI's GPTs, opening up new avenues for AI-driven decentralized applications.
 
-To showcase the potential of this system, we've developed a basic Agent marketplace. Here, users can create agents and modify them with secret attributes, simulating a dynamic economy of AI entities.
+To showcase the potential of this system, we've developed a basic Agent marketplace UI. In the interface, users can create agents and modify them with secret attributes, simulating a dynamic economy of AI entities.
 
 Furthermore, we've created a smart contract for Story Protocol that demonstrates how this AI-driven economy could function in practice. This integration illustrates the potential for narrative-driven, AI-powered experiences in the blockchain space.
 
