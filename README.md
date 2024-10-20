@@ -4,11 +4,11 @@ IntelliJack is an AI oracle service built on Fhenix, providing inference over pr
 
 ## 📚 Background & Story
 
-IntelliJack began its journey on Galadriel's devnet, originally conceived as an "L1 for AI". However, when Galadriel pivoted and deprecated their AI oracle service, the project evolved to ensure continuity and expand its capabilities.
+IntelliJack began its journey on Galadriel's devnet, which was originally conceived as an "L1 for AI". However, when Galadriel pivoted and deprecated their AI oracle service, I realized I needed to develop my own AI oracle sollution to ensure continuity and expand its capabilities.
 
-To preserve the functionality of existing dApps and unlock new possibilities, IntelliJack was reimagined as an oracle service built on Lit Protocol. This strategic shift enabled the service to operate on any EVM chain, significantly broadening its applicability and reach.
+To preserve the functionality of existing dApps and unlock new possibilities, IntelliJack reimagined an oracle service to be built on Lit Protocol. This strategic shift enables the service to operate on any EVM chain, significantly broadening its applicability and reach.
 
-The migration to Fhenix marked a pivotal moment in IntelliJack's development. This move not only maintained the project's core functionalities but also introduced groundbreaking features, particularly in handling private data for AI inference. 
+The migration to Fhenix  not only maintained the project's core functionalitiess but also introduced groundbreaking features, particularly in handling private data for AI inference. 
 
 A key innovation in this iteration is the introduction of an agent struct within the oracle contract. This addition facilitates functionality similar to OpenAI's GPTs, opening up new avenues for AI-driven decentralized applications.
 
