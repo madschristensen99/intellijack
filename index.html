@@ -1,1 +1,2158 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Management Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/fhenixjs@0.3.0-alpha.1/dist/fhenix.umd.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2ecc71;
+            --background-color: #f4f4f4;
+            --text-color: #333;
+            --card-background: #fff;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2 {
+            color: var(--primary-color);
+        }
+        .card {
+            background-color: var(--card-background);
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        input, button {
+            font-size: 16px;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        input {
+            width: calc(100% - 22px);
+        }
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .attribute-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            margin-bottom: 5px;
+        }
+        .attribute-item button {
+            background-color: #e74c3c;
+            padding: 5px 10px;
+        }
+        .agent-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        .agent-card {
+            background-color: var(--card-background);
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 15px;
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .agent-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+        .agent-card h3 {
+            margin-top: 0;
+            color: var(--primary-color);
+        }
+        #agentStats {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Agent Management Dashboard</h1>
+
+        <div class="card">
+            <h2>Create New Agent</h2>
+            <div id="createAgentForm">
+                <input type="text" id="attributeInput" placeholder="Agent name">
+                <button id = "agent">Create Agent</button>
+                <div id="attributeList"></div>
+                <button id ="attribute">Add Attribute</button>
+                <input type="text" id="attributeName" placeholder="Attribute">
+                <input type="number" id="ratingInput" placeholder="Rating (0-255)" min="0" max="255">
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Your Agents</h2>
+            <div id="agentList" class="agent-list"></div>
+        </div>
+
+        <div class="card">
+            <h2>Agent Details</h2>
+            <div id="agentStats"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { ethers } from "../ethers.min.js";
+        import { FhenixClient, EncryptionTypes } from "https://cdn.jsdelivr.net/npm/fhenixjs@0.3.0-alpha.1/dist/fhenix.esm.min.js";
+        
+        let provider;
+        let signer;
+        let contract;
+        let client;
+        const contractAddress = '0x08F70CB9dCd97e0a0E185aDf9986A4a2662C31c9'; // Replace with your contract address
+        const contractABI = [
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "uint256",
+				"name": "functionId",
+				"type": "uint256"
+			},
+			{
+				"indexed": true,
+				"internalType": "string",
+				"name": "functionInput",
+				"type": "string"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "functionCallbackId",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "address",
+				"name": "sender",
+				"type": "address"
+			}
+		],
+		"name": "FunctionAdded",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "uint256",
+				"name": "id",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "address",
+				"name": "sender",
+				"type": "address"
+			}
+		],
+		"name": "KnowledgeBaseIndexRequestAdded",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "string",
+				"name": "cid",
+				"type": "string"
+			},
+			{
+				"indexed": true,
+				"internalType": "string",
+				"name": "indexCid",
+				"type": "string"
+			}
+		],
+		"name": "KnowledgeBaseIndexed",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "uint256",
+				"name": "kbQueryId",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "address",
+				"name": "sender",
+				"type": "address"
+			}
+		],
+		"name": "KnowledgeBaseQueryAdded",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "uint256",
+				"name": "promptId",
+				"type": "uint256"
+			},
+			{
+				"indexed": true,
+				"internalType": "uint256",
+				"name": "promptCallbackId",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "address",
+				"name": "sender",
+				"type": "address"
+			}
+		],
+		"name": "PromptAdded",
+		"type": "event"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "string",
+				"name": "attestation",
+				"type": "string"
+			}
+		],
+		"name": "addAttestation",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "agentId",
+				"type": "uint256"
+			},
+			{
+				"internalType": "string",
+				"name": "attribute",
+				"type": "string"
+			},
+			{
+				"components": [
+					{
+						"internalType": "bytes",
+						"name": "data",
+						"type": "bytes"
+					}
+				],
+				"internalType": "struct inEuint8",
+				"name": "rating",
+				"type": "tuple"
+			}
+		],
+		"name": "addAttributeToAgent",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "functionId",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "functionCallBackId",
+				"type": "uint256"
+			},
+			{
+				"internalType": "string",
+				"name": "response",
+				"type": "string"
+			},
+			{
+				"internalType": "string",
+				"name": "errorMessage",
+				"type": "string"
+			}
+		],
+		"name": "addFunctionResponse",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "promptId",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "promptCallBackId",
+				"type": "uint256"
+			},
+			{
+				"components": [
+					{
+						"internalType": "string",
+						"name": "id",
+						"type": "string"
+					},
+					{
+						"internalType": "string",
+						"name": "content",
+						"type": "string"
+					},
+					{
+						"internalType": "uint64",
+						"name": "created",
+						"type": "uint64"
+					},
+					{
+						"internalType": "string",
+						"name": "model",
+						"type": "string"
+					},
+					{
+						"internalType": "string",
+						"name": "systemFingerprint",
+						"type": "string"
+					},
+					{
+						"internalType": "string",
+						"name": "object",
+						"type": "string"
+					},
+					{
+						"internalType": "uint32",
+						"name": "completionTokens",
+						"type": "uint32"
+					},
+					{
+						"internalType": "uint32",
+						"name": "promptTokens",
+						"type": "uint32"
+					},
+					{
+						"internalType": "uint32",
+						"name": "totalTokens",
+						"type": "uint32"
+					}
+				],
+				"internalType": "struct IOracle.GroqResponse",
+				"name": "response",
+				"type": "tuple"
+			},
+			{
+				"internalType": "string",
+				"name": "errorMessage",
+				"type": "string"
+			}
+		],
+		"name": "addGroqResponse",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "string",
+				"name": "cid",
+				"type": "string"
+			}
+		],
+		"name": "addKnowledgeBase",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "kbIndexingRequestId",
+				"type": "uint256"
+			},
+			{
+				"internalType": "string",
+				"name": "indexCid",
+				"type": "string"
+			},
+			{
+				"internalType": "string",
+				"name": "error",
+				"type": "string"
+			}
+		],
+		"name": "addKnowledgeBaseIndex",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "kbQueryId",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "kbQueryCallbackId",
+				"type": "uint256"
+			},
+			{
+				"internalType": "string[]",
+				"name": "documents",
+				"type": "string[]"
+			},
+			{
+				"internalType": "string",
+				"name": "errorMessage",
+				"type": "string"
+			}
+		],
+		"name": "addKnowledgeBaseQueryResponse",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "promptId",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "promptCallBackId",
+				"type": "uint256"
+			},
+			{
+				"components": [
+					{
+						"internalType": "string",
+						"name": "id",
+						"type": "string"
+					},
+					{
+						"internalType": "string",
+						"name": "content",
+						"type": "string"
+					},
+					{
+						"internalType": "string",
+						"name": "functionName",
+						"type": "string"
+					},
+					{
+						"internalType": "string",
+						"name": "functionArguments",
+						"type": "string"
+					},
+					{
+						"internalType": "uint64",
+						"name": "created",
+						"type": "uint64"
+					},
+					{
+						"internalType": "string",
+						"name": "model",
+						"type": "string"
+					},
+					{
+						"internalType": "string",
+						"name": "systemFingerprint",
+						"type": "string"
+					},
+					{
+						"internalType": "string",
+						"name": "object",
+						"type": "string"
+					},
+					{
+						"internalType": "uint32",
+						"name": "completionTokens",
+						"type": "uint32"
+					},
+					{
+						"internalType": "uint32",
+						"name": "promptTokens",
+						"type": "uint32"
+					},
+					{
+						"internalType": "uint32",
+						"name": "totalTokens",
+						"type": "uint32"
+					}
+				],
+				"internalType": "struct IOracle.OpenAiResponse",
+				"name": "response",
+				"type": "tuple"
+			},
+			{
+				"internalType": "string",
+				"name": "errorMessage",
+				"type": "string"
+			}
+		],
+		"name": "addOpenAiResponse",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "string",
+				"name": "pcr0Hash",
+				"type": "string"
+			}
+		],
+		"name": "addPcr0Hash",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "promptId",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "promptCallBackId",
+				"type": "uint256"
+			},
+			{
+				"components": [
+					{
+						"internalType": "string",
+						"name": "id",
+						"type": "string"
+					},
+					{
+						"internalType": "string",
+						"name": "content",
+						"type": "string"
+					},
+					{
+						"internalType": "string",
+						"name": "functionName",
+						"type": "string"
+					},
+					{
+						"internalType": "string",
+						"name": "functionArguments",
+						"type": "string"
+					},
+					{
+						"internalType": "uint64",
+						"name": "created",
+						"type": "uint64"
+					},
+					{
+						"internalType": "string",
+						"name": "model",
+						"type": "string"
+					},
+					{
+						"internalType": "string",
+						"name": "systemFingerprint",
+						"type": "string"
+					},
+					{
+						"internalType": "string",
+						"name": "object",
+						"type": "string"
+					},
+					{
+						"internalType": "uint32",
+						"name": "completionTokens",
+						"type": "uint32"
+					},
+					{
+						"internalType": "uint32",
+						"name": "promptTokens",
+						"type": "uint32"
+					},
+					{
+						"internalType": "uint32",
+						"name": "totalTokens",
+						"type": "uint32"
+					}
+				],
+				"internalType": "struct IOracle.LlmResponse",
+				"name": "response",
+				"type": "tuple"
+			},
+			{
+				"internalType": "string",
+				"name": "errorMessage",
+				"type": "string"
+			}
+		],
+		"name": "addResponse",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "promptId",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "promptCallBackId",
+				"type": "uint256"
+			},
+			{
+				"internalType": "string",
+				"name": "response",
+				"type": "string"
+			},
+			{
+				"internalType": "string",
+				"name": "errorMessage",
+				"type": "string"
+			}
+		],
+		"name": "addResponse",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "string[]",
+				"name": "attributes",
+				"type": "string[]"
+			},
+			{
+				"internalType": "euint8[]",
+				"name": "ratings",
+				"type": "uint256[]"
+			}
+		],
+		"name": "createAgent",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "functionCallbackId",
+				"type": "uint256"
+			},
+			{
+				"internalType": "string",
+				"name": "functionType",
+				"type": "string"
+			},
+			{
+				"internalType": "string",
+				"name": "functionInput",
+				"type": "string"
+			}
+		],
+		"name": "createFunctionCall",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "promptCallbackId",
+				"type": "uint256"
+			},
+			{
+				"components": [
+					{
+						"internalType": "string",
+						"name": "model",
+						"type": "string"
+					},
+					{
+						"internalType": "int8",
+						"name": "frequencyPenalty",
+						"type": "int8"
+					},
+					{
+						"internalType": "string",
+						"name": "logitBias",
+						"type": "string"
+					},
+					{
+						"internalType": "uint32",
+						"name": "maxTokens",
+						"type": "uint32"
+					},
+					{
+						"internalType": "int8",
+						"name": "presencePenalty",
+						"type": "int8"
+					},
+					{
+						"internalType": "string",
+						"name": "responseFormat",
+						"type": "string"
+					},
+					{
+						"internalType": "uint256",
+						"name": "seed",
+						"type": "uint256"
+					},
+					{
+						"internalType": "string",
+						"name": "stop",
+						"type": "string"
+					},
+					{
+						"internalType": "uint256",
+						"name": "temperature",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "topP",
+						"type": "uint256"
+					},
+					{
+						"internalType": "string",
+						"name": "user",
+						"type": "string"
+					}
+				],
+				"internalType": "struct IOracle.GroqRequest",
+				"name": "config",
+				"type": "tuple"
+			}
+		],
+		"name": "createGroqLlmCall",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "kbQueryCallbackId",
+				"type": "uint256"
+			},
+			{
+				"internalType": "string",
+				"name": "cid",
+				"type": "string"
+			},
+			{
+				"internalType": "string",
+				"name": "query",
+				"type": "string"
+			},
+			{
+				"internalType": "uint32",
+				"name": "num_documents",
+				"type": "uint32"
+			}
+		],
+		"name": "createKnowledgeBaseQuery",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "promptCallbackId",
+				"type": "uint256"
+			},
+			{
+				"components": [
+					{
+						"internalType": "string",
+						"name": "model",
+						"type": "string"
+					},
+					{
+						"internalType": "int8",
+						"name": "frequencyPenalty",
+						"type": "int8"
+					},
+					{
+						"internalType": "string",
+						"name": "logitBias",
+						"type": "string"
+					},
+					{
+						"internalType": "uint32",
+						"name": "maxTokens",
+						"type": "uint32"
+					},
+					{
+						"internalType": "int8",
+						"name": "presencePenalty",
+						"type": "int8"
+					},
+					{
+						"internalType": "string",
+						"name": "responseFormat",
+						"type": "string"
+					},
+					{
+						"internalType": "uint256",
+						"name": "seed",
+						"type": "uint256"
+					},
+					{
+						"internalType": "string",
+						"name": "stop",
+						"type": "string"
+					},
+					{
+						"internalType": "uint256",
+						"name": "temperature",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "topP",
+						"type": "uint256"
+					},
+					{
+						"internalType": "string",
+						"name": "tools",
+						"type": "string"
+					},
+					{
+						"internalType": "string",
+						"name": "toolChoice",
+						"type": "string"
+					},
+					{
+						"internalType": "string",
+						"name": "user",
+						"type": "string"
+					}
+				],
+				"internalType": "struct IOracle.LlmRequest",
+				"name": "request",
+				"type": "tuple"
+			}
+		],
+		"name": "createLlmCall",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "promptCallbackId",
+				"type": "uint256"
+			}
+		],
+		"name": "createLlmCall",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "promptCallbackId",
+				"type": "uint256"
+			},
+			{
+				"components": [
+					{
+						"internalType": "string",
+						"name": "model",
+						"type": "string"
+					},
+					{
+						"internalType": "int8",
+						"name": "frequencyPenalty",
+						"type": "int8"
+					},
+					{
+						"internalType": "string",
+						"name": "logitBias",
+						"type": "string"
+					},
+					{
+						"internalType": "uint32",
+						"name": "maxTokens",
+						"type": "uint32"
+					},
+					{
+						"internalType": "int8",
+						"name": "presencePenalty",
+						"type": "int8"
+					},
+					{
+						"internalType": "string",
+						"name": "responseFormat",
+						"type": "string"
+					},
+					{
+						"internalType": "uint256",
+						"name": "seed",
+						"type": "uint256"
+					},
+					{
+						"internalType": "string",
+						"name": "stop",
+						"type": "string"
+					},
+					{
+						"internalType": "uint256",
+						"name": "temperature",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "topP",
+						"type": "uint256"
+					},
+					{
+						"internalType": "string",
+						"name": "tools",
+						"type": "string"
+					},
+					{
+						"internalType": "string",
+						"name": "toolChoice",
+						"type": "string"
+					},
+					{
+						"internalType": "string",
+						"name": "user",
+						"type": "string"
+					}
+				],
+				"internalType": "struct IOracle.OpenAiRequest",
+				"name": "config",
+				"type": "tuple"
+			}
+		],
+		"name": "createOpenAiLlmCall",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "functionId",
+				"type": "uint256"
+			}
+		],
+		"name": "markFunctionAsProcessed",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "promptId",
+				"type": "uint256"
+			}
+		],
+		"name": "markGroqPromptAsProcessed",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "kbIndexingRequestId",
+				"type": "uint256"
+			}
+		],
+		"name": "markKnowledgeBaseAsProcessed",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "kbQueryId",
+				"type": "uint256"
+			}
+		],
+		"name": "markKnowledgeBaseQueryAsProcessed",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "promptId",
+				"type": "uint256"
+			}
+		],
+		"name": "markOpenAiPromptAsProcessed",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "promptId",
+				"type": "uint256"
+			}
+		],
+		"name": "markPromptAsProcessed",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_addressToWhitelist",
+				"type": "address"
+			},
+			{
+				"internalType": "bool",
+				"name": "isWhitelisted",
+				"type": "bool"
+			}
+		],
+		"name": "updateWhitelist",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"stateMutability": "nonpayable",
+		"type": "constructor"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "attestations",
+		"outputs": [
+			{
+				"internalType": "string",
+				"name": "",
+				"type": "string"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "callbackAddresses",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "functionCallbackAddresses",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "functionCallbackIds",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "functionInputs",
+		"outputs": [
+			{
+				"internalType": "string",
+				"name": "",
+				"type": "string"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "functionsCount",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "functionTypes",
+		"outputs": [
+			{
+				"internalType": "string",
+				"name": "",
+				"type": "string"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getAgentCount",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "promptId",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "promptCallBackId",
+				"type": "uint256"
+			}
+		],
+		"name": "getMessages",
+		"outputs": [
+			{
+				"internalType": "string[]",
+				"name": "",
+				"type": "string[]"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "promptId",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "promptCallBackId",
+				"type": "uint256"
+			}
+		],
+		"name": "getMessagesAndRoles",
+		"outputs": [
+			{
+				"components": [
+					{
+						"internalType": "string",
+						"name": "role",
+						"type": "string"
+					},
+					{
+						"components": [
+							{
+								"internalType": "string",
+								"name": "contentType",
+								"type": "string"
+							},
+							{
+								"internalType": "string",
+								"name": "value",
+								"type": "string"
+							}
+						],
+						"internalType": "struct IOracle.Content[]",
+						"name": "content",
+						"type": "tuple[]"
+					}
+				],
+				"internalType": "struct IOracle.Message[]",
+				"name": "",
+				"type": "tuple[]"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "agentId",
+				"type": "uint256"
+			}
+		],
+		"name": "getPrivateAgentStats",
+		"outputs": [
+			{
+				"internalType": "bytes",
+				"name": "",
+				"type": "bytes"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "agentId",
+				"type": "uint256"
+			}
+		],
+		"name": "getPublicAgentStats",
+		"outputs": [
+			{
+				"internalType": "bytes",
+				"name": "",
+				"type": "bytes"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "promptId",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "promptCallBackId",
+				"type": "uint256"
+			}
+		],
+		"name": "getRoles",
+		"outputs": [
+			{
+				"internalType": "string[]",
+				"name": "",
+				"type": "string[]"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "groqConfigurations",
+		"outputs": [
+			{
+				"internalType": "string",
+				"name": "model",
+				"type": "string"
+			},
+			{
+				"internalType": "int8",
+				"name": "frequencyPenalty",
+				"type": "int8"
+			},
+			{
+				"internalType": "string",
+				"name": "logitBias",
+				"type": "string"
+			},
+			{
+				"internalType": "uint32",
+				"name": "maxTokens",
+				"type": "uint32"
+			},
+			{
+				"internalType": "int8",
+				"name": "presencePenalty",
+				"type": "int8"
+			},
+			{
+				"internalType": "string",
+				"name": "responseFormat",
+				"type": "string"
+			},
+			{
+				"internalType": "uint256",
+				"name": "seed",
+				"type": "uint256"
+			},
+			{
+				"internalType": "string",
+				"name": "stop",
+				"type": "string"
+			},
+			{
+				"internalType": "uint256",
+				"name": "temperature",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "topP",
+				"type": "uint256"
+			},
+			{
+				"internalType": "string",
+				"name": "user",
+				"type": "string"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "isFunctionProcessed",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "isKbIndexingRequestProcessed",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "isKbQueryProcessed",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "isPromptProcessed",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "string",
+				"name": "",
+				"type": "string"
+			}
+		],
+		"name": "kbIndexes",
+		"outputs": [
+			{
+				"internalType": "string",
+				"name": "",
+				"type": "string"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "kbIndexingRequestCount",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "kbIndexingRequestErrors",
+		"outputs": [
+			{
+				"internalType": "string",
+				"name": "",
+				"type": "string"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "kbIndexingRequests",
+		"outputs": [
+			{
+				"internalType": "string",
+				"name": "",
+				"type": "string"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "kbQueries",
+		"outputs": [
+			{
+				"internalType": "string",
+				"name": "cid",
+				"type": "string"
+			},
+			{
+				"internalType": "string",
+				"name": "query",
+				"type": "string"
+			},
+			{
+				"internalType": "uint32",
+				"name": "num_documents",
+				"type": "uint32"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "kbQueryCallbackAddresses",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "kbQueryCallbackIds",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "kbQueryCount",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "latestAttestationOwner",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "latestPcr0HashOwner",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "llmConfigurations",
+		"outputs": [
+			{
+				"internalType": "string",
+				"name": "model",
+				"type": "string"
+			},
+			{
+				"internalType": "int8",
+				"name": "frequencyPenalty",
+				"type": "int8"
+			},
+			{
+				"internalType": "string",
+				"name": "logitBias",
+				"type": "string"
+			},
+			{
+				"internalType": "uint32",
+				"name": "maxTokens",
+				"type": "uint32"
+			},
+			{
+				"internalType": "int8",
+				"name": "presencePenalty",
+				"type": "int8"
+			},
+			{
+				"internalType": "string",
+				"name": "responseFormat",
+				"type": "string"
+			},
+			{
+				"internalType": "uint256",
+				"name": "seed",
+				"type": "uint256"
+			},
+			{
+				"internalType": "string",
+				"name": "stop",
+				"type": "string"
+			},
+			{
+				"internalType": "uint256",
+				"name": "temperature",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "topP",
+				"type": "uint256"
+			},
+			{
+				"internalType": "string",
+				"name": "tools",
+				"type": "string"
+			},
+			{
+				"internalType": "string",
+				"name": "toolChoice",
+				"type": "string"
+			},
+			{
+				"internalType": "string",
+				"name": "user",
+				"type": "string"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "openAiConfigurations",
+		"outputs": [
+			{
+				"internalType": "string",
+				"name": "model",
+				"type": "string"
+			},
+			{
+				"internalType": "int8",
+				"name": "frequencyPenalty",
+				"type": "int8"
+			},
+			{
+				"internalType": "string",
+				"name": "logitBias",
+				"type": "string"
+			},
+			{
+				"internalType": "uint32",
+				"name": "maxTokens",
+				"type": "uint32"
+			},
+			{
+				"internalType": "int8",
+				"name": "presencePenalty",
+				"type": "int8"
+			},
+			{
+				"internalType": "string",
+				"name": "responseFormat",
+				"type": "string"
+			},
+			{
+				"internalType": "uint256",
+				"name": "seed",
+				"type": "uint256"
+			},
+			{
+				"internalType": "string",
+				"name": "stop",
+				"type": "string"
+			},
+			{
+				"internalType": "uint256",
+				"name": "temperature",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "topP",
+				"type": "uint256"
+			},
+			{
+				"internalType": "string",
+				"name": "tools",
+				"type": "string"
+			},
+			{
+				"internalType": "string",
+				"name": "toolChoice",
+				"type": "string"
+			},
+			{
+				"internalType": "string",
+				"name": "user",
+				"type": "string"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "pcr0Hashes",
+		"outputs": [
+			{
+				"internalType": "string",
+				"name": "",
+				"type": "string"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "promptCallbackIds",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "promptsCount",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "promptType",
+		"outputs": [
+			{
+				"internalType": "string",
+				"name": "",
+				"type": "string"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "promptTypes",
+		"outputs": [
+			{
+				"internalType": "string",
+				"name": "defaultType",
+				"type": "string"
+			},
+			{
+				"internalType": "string",
+				"name": "openAi",
+				"type": "string"
+			},
+			{
+				"internalType": "string",
+				"name": "groq",
+				"type": "string"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	}
+];
+        const attributes = [];
+        const ratings = [];
+        const FHENIX_CHAIN_ID = '0x7A31C7'; // Hexadecimal representation of 8008135
+        const FHENIX_NETWORK_PARAMS = {
+            chainId: FHENIX_CHAIN_ID,
+            chainName: 'Fhenix Network',
+            nativeCurrency: {
+                name: 'FHE',
+                symbol: 'FHE',
+                decimals: 18
+            },
+            rpcUrls: ['https://api.helium.fhenix.zone'], // Replace with actual RPC URL
+            blockExplorerUrls: ['https://explorer.helium.fhenix.zone/'] // Replace with actual explorer URL
+        };
+        async function init() {
+            if (typeof window.ethereum !== 'undefined') {
+                try {
+                    await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    provider = new ethers.providers.Web3Provider(window.ethereum);
+                    
+                    client = new FhenixClient({provider});
+                    await checkAndSwitchNetwork();
+                    
+                    signer = provider.getSigner();
+                    contract = new ethers.Contract(contractAddress, contractABI, signer);
+                    
+                    console.log("Contract address: " + contractAddress);
+                    console.log("Contract ABI: " + JSON.stringify(contractABI));
+                    
+                    await refreshAgentList();
+                } catch (error) {
+                    console.log("Error in init: " + error.message);
+                }
+            } else {
+                console.log('Please install MetaMask!');
+            }
+        }
+
+        async function checkAndSwitchNetwork() {
+            const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+            if (chainId !== FHENIX_CHAIN_ID) {
+                console.log("Not connected to Fhenix network. Attempting to switch...");
+                try {
+                    await window.ethereum.request({
+                        method: 'wallet_switchEthereumChain',
+                        params: [{ chainId: FHENIX_CHAIN_ID }],
+                    });
+                } catch (switchError) {
+                    // This error code indicates that the chain has not been added to MetaMask.
+                    if (switchError.code === 4902) {
+                        try {
+                            await window.ethereum.request({
+                                method: 'wallet_addEthereumChain',
+                                params: [FHENIX_NETWORK_PARAMS],
+                            });
+                        } catch (addError) {
+                            throw new Error("Failed to add Fhenix network: " + addError.message);
+                        }
+                    } else {
+                        throw new Error("Failed to switch to Fhenix network: " + switchError.message);
+                    }
+                }
+            }
+            console.log("Connected to Fhenix network");
+        }
+
+        async function refreshAgentList() {
+            try {
+                console.log("Attempting to get agent count...");
+                const agentCount = await contract.getAgentCount();
+                console.log("Agent count: " + agentCount.toString());
+                const list = document.getElementById('agentList');
+                list.innerHTML = '';
+                for (let i = 0; i < agentCount; i++) {
+                    const card = document.createElement('div');
+                    card.className = 'agent-card';
+                    card.innerHTML = `<h3>Agent ${i}</h3><p>Click to view details</p>`;
+                    card.onclick = () => viewAgentStats(i);
+                    list.appendChild(card);
+                }
+            } catch (error) {
+                console.log("Error refreshing agent list: " + error.message);
+                if (error.error) {
+                    log("Error details: " + error.error.message);
+                }
+            }
+        }
+        async function addAttribute() {
+            const attribute = document.getElementById('attributeName').value;
+            const rating = document.getElementById('ratingInput').value;
+            if (attribute && rating) {
+                let encrypted = await client.encrypt_uint8(Number(rating));
+                console.log(attribute);
+                console.log(encrypted);
+                contract.addAttributeToAgent(1, attribute, encrypted)
+                attributes.push(attribute);
+                ratings.push(Number(rating));
+                updateAttributeList();
+                document.getElementById('attributeInput').value = '';
+                document.getElementById('ratingInput').value = '';
+            }
+        }
+
+        function updateAttributeList() {
+            const list = document.getElementById('attributeList');
+            list.innerHTML = attributes.map((attr, index) => `
+                <div class="attribute-item">
+                    <span>${attr}: ${ratings[index]}</span>
+                    <button onclick="removeAttribute(${index})">Remove</button>
+                </div>
+            `).join('');
+        }
+
+        function removeAttribute(index) {
+            attributes.splice(index, 1);
+            ratings.splice(index, 1);
+            updateAttributeList();
+        }
+
+        async function createAgent() {
+            try {
+                const tx = await contract.createAgent(attributes, ratings);
+                await tx.wait();
+                attributes.length = 0;
+                ratings.length = 0;
+                updateAttributeList();
+                refreshAgentList();
+            } catch (error) {
+                console.error("Error creating agent:", error);
+            }
+        }
+
+        async function viewAgentStats(agentId) {
+            try {
+                const statsDiv = document.getElementById('agentStats');
+                statsDiv.innerHTML = `<h3>Agent ${agentId} Stats</h3>`;
+
+                // Try to get private stats first
+                try {
+                    console.log("beans");
+                    const privateStats = await contract.getPrivateAgentStats(agentId);
+                    const decoded = ethers.utils.defaultAbiCoder.decode(['string[]', 'uint8[]'], privateStats);
+                    const attributeNames = decoded[0];
+                    const ratings = decoded[1];
+                    console.log("beans3");
+                    attributeNames.forEach((attr, index) => {
+                        statsDiv.innerHTML += `<p>${attr}: ${ratings[index]}</p>`;
+                    });
+                    console.log("beans5");
+                } catch (error) {
+                    // If getting private stats fails, fall back to public stats
+                    const publicStats = await contract.getPublicAgentStats(agentId);
+                    const decoded = ethers.utils.defaultAbiCoder.decode(['string[]'], publicStats);
+                    const attributeNames = decoded[0];
+
+                    attributeNames.forEach((attr) => {
+                        statsDiv.innerHTML += `<p>${attr}: Hidden</p>`;
+                    });
+                }
+            } catch (error) {
+                console.error("Error viewing agent stats:", error);
+            }
+        }
+
+        window.onload = init;
+        const agentButton = document.getElementById("agent");
+                // Add an event listener for the 'click' event
+        agentButton.addEventListener('click', async function() {
+            createAgent();
+        });
+        
+        const attributeButton = document.getElementById("attribute");
+        attributeButton.addEventListener('click', async function() {
+            addAttribute();
+        });
+    </script>
+</body>
+</html>
