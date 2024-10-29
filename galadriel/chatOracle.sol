@@ -1,5 +1,5 @@
 
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
 // Uncomment this line to use console.log
